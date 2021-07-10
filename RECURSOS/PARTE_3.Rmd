@@ -1,0 +1,229 @@
+---
+title: "Ejercicio 6 - parte N°3"
+author: "Grupo N°5 - GeoCódigo"
+date: "`r Sys.Date()`"
+documentclass: krantz
+biblio-style: apalike
+link-citations: yes
+colorlinks: yes
+graphics: yes
+fontsize: 10pt
+mainfont: Palatino
+site: bookdown::bookdown_site
+
+---
+
+```{=html}
+<style>
+body {
+text-align: justify}
+</style>
+```
+
+
+&nbsp;
+
+**EJERCICIO. Manipule los dataframe según se solicite**
+
+Se tiene el conjuntos de datos de precipitación diaria (período 1980 - 2013) de ciertas estaciones meteorológicas (**raingaugeDataset.csv**), donde cada una de estas están asociadas a un código único (**p.e. qc00000208**). Asimismo, se tiene una lista con los nombres, códigos, coordenadas y elevación de cada una de las estaciones (**listRaingauge.csv**).
+
+A cada grupo le corresponde la siguiente estación:
+
+
+- **Grupo 05**: SAN MIGUEL
+
+
+De lo descrito anteriormente, se solicita:
+
+a) Determine la cantidad de **missing values** de la serie de tiempo a paso diario.
+b) Calcule la serie de tiempo de precipitación **acumulada mensual** (si el # de días con missing values, en un mes, supera el 10%, la precipitación acumulada mensual será considerado como un **`NA`**).
+c) Determine la cantidad de **missing values** de la serie de tiempo a paso mensual.
+d) Cree una función que calcule, a partir de los datos de preicpitación mensual, la **climatología (Ene-Dic)** para el **período 1980-2010**.
+e) Poltear (boxplot) la variabilidad de los valores mensuales (Ene-Dic) para el período 1980-2013.
+
+- - - 
+
+
+&nbsp;
+
+Antes de comenzar con el desarollo extraemos las librerias que necesitaremos.
+
+```{r}
+library(tidyverse)
+library(dplyr)
+library(leaflet)
+library(sp)
+library(sf)
+```
+
+Definimos los archivos de trabajo y los asignamos a un objeto.
+
+```{r}
+names_table <- read_csv("../ProgramacionR-master/data/listRaingauge.csv")
+names(names_table) #Extraemos los nombres de nuestrso archivos para observar la forma de escritura para nuestra conuslota, si estan en altas, bajas o una combinacion de estas.
+
+estacion <- names_table %>% # Estraer el código de la estacion en base al nombre.
+  dplyr::filter(NOM_EST == "SAN MIGUEL") %>%
+  dplyr::select(CODIGO) %>%
+  as.character()
+
+data <- 
+  read_csv("../ProgramacionR-master/data/raingaugeDataset.csv")%>%
+  dplyr::select(date, all_of(estacion)) %>%
+  mutate(date = as.Date(date, format = "%d/%m/%Y")) %>%
+  rename(pp = all_of(estacion)) %>%
+  arrange(date)
+```
+
+***Georreferenciamos nuestra estación en base a la información brindada***
+
+```{R}
+leaflet()%>%addTiles()%>%
+  addMarkers(
+    lng = -80.7,
+    lat = -5.25,
+    popup = paste(sep = "<br/>",
+                   "<b>ESTACIÓN SAN MIGUEL</b>",
+                   "Departamento: Piura",
+                   "Código: qc00000247",
+                  "Antitud: 24"))
+```
+
+
+Comprobamos la completud de nuestros datos con:
+
+```{r}
+tail(data) #con esto podre saber la fecha final(la inicial lo podemos obtener solo llamando al archivo data).
+#mediante una Secuencia diaria comprombamos si la cantidadd de elementos en el dataframe estan completos.
+seq(as.Date("1980-01-01"), as.Date("2013-12-31"), by = "day") %>%
+length()
+
+# CINCIDE CON LA CANTIDAD DEL DATAFRAME, EXCELENTE ...!!!!
+```
+
+
+&nbsp;
+
+### En el ejercicio se pide:
+
+a) Determinar la cantidad de **missing values** de la serie de tiempo a paso diario.
+```{r}
+(NA_diario <- 
+  data %>%
+  mutate(
+    cantidad_NA =  sum(is.na(pp)) 
+  ) %>%
+  summarise(  
+    cantidad_NA = unique(cantidad_NA) 
+  ))
+```
+
+**Comentario:** El resultado nos muestra la cantidad de Missing Values o valores NA que existe dentro de nuestra estructura de datos con una serio a paso diario.
+
+
+&nbsp;
+
+b) Calcule la serie de tiempo de precipitación **acumulada mensual** (si el # de días con missing values, en un mes, supera el 10%, la precipitación acumulada mensual será considerado como un **NA**).
+
+```{r}
+#1. determinamos los valores para las pp mensual.
+pp_month <- 
+  data %>%
+  group_by(date = str_sub(date, 1, 7)) %>% #agrupamos los caracteres de 1 al 7 donde abarca los años y meses.
+  mutate(
+    valores_NA =  sum(is.na(pp))*100/n()  #indicrá nos numeros de NA en un nuevo campo llamado missval(en porcentaje). la funcion n me arroja el numero de dias.
+  ) %>%
+  summarise(   #Tabla resumen
+    pp = sum(pp, na.rm = T), #realizamos la pp acumulada
+    valores_NA = unique(valores_NA), #Genera un unico valor, la funcion unique me devuelve valores únicos
+  )%>%
+  mutate(
+    pp = ifelse(valores_NA >= 10, NA, pp), #Los porcentajes que no cumples con el criterio se consideraran como NA
+    date = as.Date(sprintf("%1$s-01", date)),
+    meses = str_sub(date,6,7)#Creamos una variable que nos muestre los meses. variabilidad para cada mes por todos los años.
+  )
+
+#2. Ploteamos los valores
+ggplot(pp_month, aes(date, pp)) +
+  geom_line(color = "#048ABF")+
+  labs(y="precipitación (mm)", x = "Años analizados")+
+  ggtitle("Precipitación acumulada mensual")+
+  theme(plot.title = element_text(vjust =2, hjust = 0.5))+
+  theme(axis.title.y = element_text(vjust = 2.5))+
+  theme(axis.title.x = element_text(vjust = -0.5))
+```
+
+**Comentario:** La gráfica nos permite tener un analisis visual de la precipitación acumulada por meses para todos los rangos de años en el cual estamos trabajando, es decir muetra la variacion de lluvia registrada en mm y sumada por meses para los años que van de 1980 al 2013. Resulta relevante además recalcar que los valores faltantes que son mayores al 10% dentro de cada mes se ha asignado un valor de NA a todo el mes, motivo por el cual la gráfica muestra secciones incompletas de secuencia que en si representa la existencia de valores faltantes para ese periodo.
+
+
+&nbsp;
+
+c) Determine la cantidad de **missing values** de la serie de tiempo a paso mensual.
+
+```{r}
+#Cantidad de missing values por meses donde los que tiene NA mayores al 10% se contabilizan como Na tambien.
+(NA_mensual<- sum(is.na(pp_month$pp)))
+```
+
+**Comentario:** El resultado nos muestra la cantidad de Missing Values o valores NA que existe dentro de nuestra estructura de datos, agrupadas por meses. Resulta importante tambien mencionar que para los meses donde existe un porcentaje mayor al 10% de valores faltantes, se le ha asignado una categoría de Na a todo ese periodo.
+
+
+&nbsp;
+
+d) Cree una función que calcule, a partir de los datos de preicpitación mensual, la **climatología (Ene-Dic)** para el **período 1980-2010**.
+
+```{R}
+#Definimos el periodo de trabajo y lo asignamos a un objeto pp_periodo.
+pp_periodo <- 
+  pp_month%>%
+  dplyr::filter(date >= "1980-01-01" & date < "2010-12-31")%>%
+  group_by(date = str_sub(date, 6,7)) %>%
+  mutate(
+    valores_NA =  sum(is.na(pp))*100/n()  #indicrá nos numeros de NA en un nuevo campo llamado missval(en porcentaje). la funcion n me arroja el numero de dias.
+  )%>%
+  summarise(   #Tabla resumen
+    pp = mean(pp, na.rm = T), #realizamos la pp acumulada
+    valores_NA = unique(valores_NA), #Genera un unico valor, la funcion unique me devuelve valores únicos
+  )%>%
+  mutate(
+    pp = ifelse(valores_NA >= 10, NA, pp), #Los porcentajes que no cumples con el criterio se consideraran como NA
+    date = as.Date(sprintf("2000-%1$s-01", date)),
+    meses = str_sub(date,6,7))#Creamos una variable que nos muestre los meses. variabilidad para cada mes por todos los años.
+  
+
+#Ploteamos el resultado
+ggplot(pp_periodo, aes(x=meses, y=pp, fill = pp_perido$pp))+
+  geom_bar(stat = "identity", fill = "#3CA27A")+
+  scale_x_discrete(
+    labels = month.abb
+  )+
+  ggtitle("climatología (Ene-Dic) del período 1980-2010")+
+  theme(plot.title = element_text(vjust =2, hjust = 0.5))+
+  labs(y="precipitación (mm)") +
+  theme(axis.title.y = element_text(vjust = 2.5))
+```
+
+**Comentario:** La gráfica nos muestra la precipitacion promedio por cada mes, durante el periodo 1980 y 2010. En este gráfico a primera vista se puede observar que las precipitaciones mas altas corresponden a los primeros mese del año entre enero y abril con un promedio de 35mm miestras que la temporada seca o de pocas precipitaciones se registran durante los meses de julio y octubre.
+
+&nbsp;
+
+e) Poltear (boxplot) la variabilidad de los valores mensuales (Ene-Dic) para el período 1980-2013.
+
+```{r}
+pp_month2 <- 
+  pp_month%>%
+  dplyr::filter(date >= "1980-01-01" & date < "2013-12-31")
+
+ggplot(pp_month2, aes(meses, pp)) +
+geom_boxplot(fill = "#048ABF") +
+theme_bw() +
+scale_x_discrete(
+  labels = month.abb
+) +
+ggtitle("Variabilidad de la precipitación mensual - periodo 1980-2013")+
+  theme(plot.title = element_text(vjust =2, hjust = 0.5))+
+labs(y="precipitación (mm)") +
+theme(axis.title.y = element_text(vjust = 2.5))
+```
+
+**Comentario:** El diagrama de cajas nos muestra los datos de precipitación por mes a travez de cuartiles, mostrándonos la mediada para cada mes y los cuartiles, mientras que los puntos que sobresalen del diagrama representan a los valores atípicos de precipitación que se registraron.

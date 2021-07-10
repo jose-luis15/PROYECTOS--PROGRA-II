@@ -1,0 +1,98 @@
+---
+title: "6.3 Parte 3"
+author: "Grupo N° 5"
+date: "9/7/2021"
+output: github_document
+---
+
+Antes de comenzar con el desarollo extraemos las librerias que necesitaremos.
+
+```{r}
+library(tidyverse)
+library(dplyr)
+```
+
+Establecemos nuestrso directorio de trabajo
+
+```{R}
+dir()
+setwd("C:/Users/Jose Luis/Desktop/PROGRAMACION II/Jose Luis Perez Ruiz - PRESENTACIÓn/Portada - PRIOGRA II")
+```
+
+Definimos los archivos de trabajo y los asignamos a un objeto.
+
+```{r}
+names_table <- read_csv("listRaingauge.csv")
+names(names_table) #Extraemos los nombres de nuestrso archivos para observar la forma de escritura para nuestra conuslota, si estan en altas, bajas o una combinacion de estas.
+
+estacion <- names_table %>% # Estraer el código de la estacion en base al nombre.
+  dplyr::filter(,NOM_EST == "SAN MIGUEL") %>%
+  dplyr::select(,CODIGO) %>%
+  as.character()
+
+data <- 
+  read_csv("raingaugeDataset.csv")%>%
+  dplyr::select(date, all_of(estacion)) %>%
+  mutate(date = as.Date(date, format = "%d/%m/%Y")) %>%
+  rename(pp = all_of(estacion)) %>%
+  arrange(date)
+```
+
+Comprobamos la completud de nuestros datos con:
+
+```{r}
+tail(data) #con esto podre saber la fecha final(la inicial lo podemos obtener solo llamando al archivo data).
+#mediante una Secuencia diaria comprombamos si la cantidadd de elementos en el dataframe estan completos.
+seq(as.Date("1980-01-01"), as.Date("2013-12-31"), by = "day") %>%
+length()
+
+# CINCIDE CON LA CANTIDAD DEL DATAFRAME, EXCELENTE ...!!!!
+```
+
+**EN EL EJERCICIO SE PIDE:**
+
+a) Determinar la cantidad de **missing values** de la serie de tiempo a paso diario.
+```{r}
+(NA_diario <- 
+  data %>%
+  mutate(
+    cantidad_NA =  sum(is.na(pp)) 
+  ) %>%
+  summarise(  
+    cantidad_NA = unique(cantidad_NA) 
+  ))
+```
+
+b) Calcule la serie de tiempo de precipitación **acumulada mensual** (si el # de días con missing values, en un mes, supera el 10%, la precipitación acumulada mensual será considerado como un **NA**).
+
+```{r}
+#1. determinamos los valores para las pp mensual.
+pp_month <- 
+  data %>%
+  group_by(date = str_sub(date, 1, 7)) %>% #agrupamos los caracteres de 1 al 7 donde abarca los años y meses.
+  mutate(
+    valores_NA =  sum(is.na(pp))*100/n()  #indicrá nos numeros de NA en un nuevo campo llamado missval(en porcentaje). la funcion n me arroja el numero de dias.
+  ) %>%
+  summarise(   #Tabla resumen
+    pp = sum(pp, na.rm = T), #realizamos la pp acumulada
+    valores_NA = unique(valores_NA), #Genera un unico valor, la funcion unique me devuelve valores únicos
+  )%>%
+  mutate(
+    pp = ifelse(valores_NA >= 10, NA, pp), #Los porcentajes que no cumples con el criterio se consideraran como NA
+    date = as.Date(sprintf("%1$s-01", date)),
+    meses = str_sub(date,6,7)#Creamos una variable que nos muestre los meses. variabilidad para cada mes por todos los años.
+  )
+
+#2. Ploteamos los valores
+ggplot(pp_month, aes(date, pp)) +
+  geom_line(color = "#048ABF")+
+  labs(y="precipitación (mm)", x = "Años analizados")+
+  ggtitle("Precipitación acumulada mensual")+
+  theme(plot.title = element_text(vjust =2, hjust = 0.5))+
+  theme(axis.title.y = element_text(vjust = 2.5))+
+  theme(axis.title.x = element_text(vjust = -0.5))
+```
+
+
+
+
