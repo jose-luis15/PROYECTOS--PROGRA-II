@@ -1,0 +1,187 @@
+---
+title: "Examen parcial."
+author: "Jose Luis Perez Ruiz"
+date: "24/7/2021"
+output: html_document
+---
+
+```{r}
+######################################################################################################
+######################################## EXAMEN PARCIAL ##############################################
+######################################################################################################
+
+# PARTE 1
+
+# PREGUNTA N°1
+
+variable <- function(h, x = 85.4){
+  if(h>=1000 & h<3000){
+    p = x - 2*(h%/%500)
+  } else if(h>=3000 & h<4000){
+    p = x - 0.5*(h%/%500)
+  } else if(h>=4000){
+    p = x
+  } else{
+  print("valor no considerado")
+  }
+  
+  return(p)
+}
+
+variable(1000)
+```
+```{r}
+# PREGUNTA N°2
+
+mat01 <- matrix(c(3,2,-2,2,-1,3,1,4,2), nrow = 3, ncol = 3, byrow = T)
+
+mat02 <- matrix(c(0,9,-4), nrow = 3, ncol = 1)
+
+
+solve(mat01,mat02)
+#a=2, b=-2, c=1
+```
+
+```{r}
+# PARTE 2
+
+# PREGUNTA N°1
+
+#################### a)
+data <- read_csv("mods_clima_uh.csv")%>% 
+  #mutate(date = as.Date(sprintf("2000-%1$s", bh_month)))%>%      #Convertimos a fecha el campo bh_month
+  arrange(uh_name) #ordenamos de acuerdoa la fecha
+
+cuenca <- 
+  data %>%
+  filter(uh_name == "Cuenca Acarí")%>% #agrupamos los caracteres de 1 al 7 donde abarca los años y meses.
+  mutate(date = seq(as.Date("2001-01-01"), as.Date("2004-12-31"), by = "month"))%>%
+  select(date, everything())%>%
+  arrange(date)
+
+#Para este caso la comprobación de la cantidad de datos mediante la comparación de lo datos
+#con un rango de fecha establecido ya no es necesario, puesto que el conjunto de datos tiene 48 fila
+#que corresponde exactamente a 4 años de observaciones en la cuenca
+
+
+(valores_falta <-
+  cuenca %>% mutate(
+    valores_NA =  sum(is.na(bh_pc))*100/n()  #indicrá nos numeros de NA en un nuevo campo llamado missval(en porcentaje). la funcion n me arroja el numero de dias.
+  )%>%
+  tail())
+
+#buscamos los valores NA y los colocamos en un nuevo campo, mediante la funcion tail, vemos los 
+#ultimos valores(que es donde se ubican los valores NA) y no se ve ninguno, gracias a esto
+#Comprobamos ademas que en nuestra cuenca no existen valores Na lo cual es faborable, para nosotros
+
+#Como comprobamos que no existen valores NA, sumamos los valores de pp de frente.
+pp_anual_acum <-
+  cuenca %>%
+  group_by(date = str_sub(date, 1, 4)) %>% #agrupamos los caracteres de 1 al 7 donde abarca los años y meses.
+  summarise(   #Tabla resumen
+    pp = sum(bh_pc, na.rm = T), #realizamos la pp acumulada
+  )
+
+pp_anual_acum
+```
+
+```{r}
+#################### d)
+pp_periodo <-
+  cuenca%>%
+  group_by(date = str_sub(date, 6,7)) %>%
+  summarise(   #Tabla resumen
+    bh_pc = mean(bh_pc, na.rm = T), #realizamos la pp acumulada
+  )%>%
+  mutate(
+    date = as.Date(sprintf("2000-%1$s-01", date)),
+    meses = str_sub(date,6,7))#Creamos una variable que nos muestre los meses. variabilidad para cada mes por todos los años.
+
+#Ploteamos el resultado
+ggplot(pp_periodo, aes(x=meses, y=bh_pc, fill = pp_perido$bh_pc))+
+  geom_bar(stat = "identity", fill = "#3CA27A")+
+  scale_x_discrete(
+    labels = month.abb
+  )+
+  ggtitle("climatología (Ene-Dic) de la cuenca AcArí")+
+  theme(plot.title = element_text(vjust =2, hjust = 0.5))+
+  labs(y="precipitación (mm)") +
+  theme(axis.title.y = element_text(vjust = 2.5))
+
+```
+
+
+```{r}
+# PARTE 3
+
+# PREGUNTA N°1
+
+#################### a)
+data <-
+  read_csv("temperatureDataset.csv")%>%
+  dplyr::select(DATE, all_of("qc00000746")) %>%
+  mutate(DATE = as.Date(DATE, format = "%d/%m/%Y")) %>%
+  rename(pp = all_of("qc00000746")) %>%
+  mutate(pp = ifelse(pp < -99, NA, pp))%>%
+  arrange(DATE)
+
+# ----------------------------------------------------------------------------
+NA_count01 <-
+  data%>%
+  dplyr::filter(DATE >= "1983-09-01" & DATE < "1984-08-31")%>%
+  #group_by(DATE = str_sub(DATE, 6,7)) %>%
+  mutate(
+    cantidad_NA =  sum(is.na(pp))  #indicrá nos numeros de NA en un nuevo campo llamado missval(en porcentaje). la funcion n me arroja el numero de dias.
+  )%>%
+  summarise(
+    cantidad_NA = unique(cantidad_NA)
+  )
+
+NA_count01
+```
+
+```{r}
+ # ----------------------------------------------------------------------------
+NA_count02 <-
+  data%>%
+  dplyr::filter(DATE >= "1997-09-01" & DATE < "1998-08-31")%>%
+  #group_by(DATE = str_sub(DATE, 6,7)) %>%
+  mutate(
+    cantidad_NA =  sum(is.na(pp))  #indicrá nos numeros de NA en un nuevo campo llamado missval(en porcentaje). la funcion n me arroja el numero de dias.
+  )%>%
+  summarise(
+    cantidad_NA = unique(cantidad_NA)
+  )
+
+NA_count02
+```
+
+
+
+```{r}
+#################### c)
+NA_count03 <-
+  data%>%
+  dplyr::filter(DATE >= "2005-01-01" & DATE < "2010-12-31")%>%
+  group_by(DATE = str_sub(DATE, 6,7)) %>%
+  mutate(
+    valores_NA =  sum(is.na(pp))*100/n()  #indicrá nos numeros de NA en un nuevo campo llamado missval(en porcentaje). la funcion n me arroja el numero de dias.
+  )%>%
+  summarise(   #Tabla resumen
+    pp = mean(pp, na.rm = T), #realizamos la pp acumulada
+    valores_NA = unique(valores_NA), #Genera un unico valor, la funcion unique me devuelve valores únicos
+  )
+
+NA_count03
+#Como el calculo es en una serie de paso mensual y en ningun caso se supera el criterio de superior al 10% de Na se 
+#menciona que no existirira valores Na para esete periodo, A PASO MENSUAL.
+```
+
+
+
+```{r}
+
+```
+
+
+
